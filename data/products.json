@@ -1,0 +1,44 @@
+[
+  {
+    "id": 1,
+    "title": "Zapatos",
+    "description": "Zapatos de cuero 1",
+    "code": "ZAP-001",
+    "price": 1200,
+    "status": true,
+    "stock": 15,
+    "category": "calzado",
+    "thumbnails": [
+      "/imgs/zap1.png",
+      "/imgs/zap2.png"
+    ]
+  },
+  {
+    "id": 2,
+    "title": "Zapatos",
+    "description": "Zapatos de cuero 1",
+    "code": "ZAP-001",
+    "price": 1200,
+    "status": true,
+    "stock": 15,
+    "category": "calzado",
+    "thumbnails": [
+      "/imgs/zap1.png",
+      "/imgs/zap2.png"
+    ]
+  },
+  {
+    "id": 3,
+    "title": "Zapatos",
+    "description": "Zapatos de cuero 1",
+    "code": "ZAP-001",
+    "price": 1200,
+    "status": true,
+    "stock": 15,
+    "category": "calzado",
+    "thumbnails": [
+      "/imgs/zap1.png",
+      "/imgs/zap2.png"
+    ]
+  }
+]

@@ -1,0 +1,27 @@
+{
+  "name": "api-tienda-web",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "smoke": "node scripts/smoke.js",
+    "smoke:crud": "node scripts/smoke_crud.js",
+    "smoke:carts": "node scripts/smoke_carts.js",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Gleyberson/api-tienda-web.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Gleyberson/api-tienda-web/issues"
+  },
+  "homepage": "https://github.com/Gleyberson/api-tienda-web#readme",
+  "dependencies": {
+    "express": "^5.1.0"
+  }
+}
