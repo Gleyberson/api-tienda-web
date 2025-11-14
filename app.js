@@ -1,4 +1,4 @@
-// app.js test gh_2
+// app.js test gh_3
 const express = require('express');
 const path = require('path');
 const ProductManager = require('./src/ProductManager');
