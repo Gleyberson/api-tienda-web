@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>{{title}}</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <!-- Cargar primero el cliente de Socket.IO -->
+  <script src="/socket.io/socket.io.js" defer></script>
+</head>
+<body>
+  <nav>
+    <a href="/home">Inicio</a> |
+    <a href="/realtimeproducts">Productos en tiempo real</a>
+  </nav>
+  <main>
+    {{{body}}}
+  </main>
+</body>
+</html>

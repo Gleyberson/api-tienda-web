@@ -1,14 +1,25 @@
 // app.js test gh_4
 const express = require('express');
 const path = require('path');
+const http = require('http');
+const { Server } = require('socket.io');
+const { engine } = require('express-handlebars');
 const ProductManager = require('./src/ProductManager');
 const CartManager = require('./src/CartManager');
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
 const PORT = process.env.PORT || 8080;
 
 // Middlewares
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Handlebars setup
+app.engine('handlebars', engine());
+app.set('view engine', 'handlebars');
+app.set('views', path.join(__dirname, 'views'));
 
 // Data store path
 const productsPath = path.join(__dirname, 'data', 'products.json');
@@ -20,7 +31,27 @@ const cm = new CartManager(cartsPath, pm);
 app.get('/', (_req, res) => {
   res.json({ status: 'ok', service: 'api-tienda-web' });
 });
-// Carts API (/api/carts)
+
+// Views
+app.get('/home', async (_req, res) => {
+  try {
+    const products = await pm.getProducts();
+    res.render('home', { products });
+  } catch (err) {
+    res.status(500).send('Failed to render home');
+  }
+});
+
+app.get('/realtimeproducts', async (_req, res) => {
+  try {
+    const products = await pm.getProducts();
+    res.render('realTimeProducts', { products });
+  } catch (err) {
+    res.status(500).send('Failed to render realtimeproducts');
+  }
+});
+
+// Products API (/api/products)
 const productsBase = '/api/products';
 // GET /api/products
 app.get(productsBase, async (_req, res) => {
@@ -36,6 +67,8 @@ app.get(productsBase, async (_req, res) => {
 app.post(productsBase, async (req, res) => {
   try {
     const created = await pm.addProduct(req.body || {});
+    // broadcast latest products to all sockets
+    io.emit('products', await pm.getProducts());
     res.status(201).json(created);
   } catch (err) {
     res.status(400).json({ error: 'Failed to create product', details: err.message });
@@ -60,6 +93,8 @@ app.put(`${productsBase}/:pid`, async (req, res) => {
     const { pid } = req.params;
     const updated = await pm.updateProduct(pid, req.body || {});
     if (!updated) return res.status(404).json({ error: 'Product not found' });
+    // broadcast latest products to all sockets
+    io.emit('products', await pm.getProducts());
     res.json(updated);
   } catch (err) {
     res.status(400).json({ error: 'Failed to update product', details: err.message });
@@ -72,6 +107,8 @@ app.delete(`${productsBase}/:pid`, async (req, res) => {
     const { pid } = req.params;
     const ok = await pm.deleteProduct(pid);
     if (!ok) return res.status(404).json({ error: 'Product not found' });
+    // broadcast latest products to all sockets
+    io.emit('products', await pm.getProducts());
     res.status(204).send();
   } catch (err) {
     res.status(400).json({ error: 'Failed to delete product', details: err.message });
@@ -118,6 +155,35 @@ app.post(`${cartsBase}/:cid/product/:pid`, async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+// Socket.IO
+io.on('connection', async (socket) => {
+  // send current products on connect
+  socket.emit('products', await pm.getProducts());
+
+  // create via WS
+  socket.on('product:create', async (payload, cb) => {
+    try {
+      const created = await pm.addProduct(payload || {});
+      io.emit('products', await pm.getProducts());
+      cb && cb({ ok: true, product: created });
+    } catch (e) {
+      cb && cb({ ok: false, error: e.message });
+    }
+  });
+
+  // delete via WS
+  socket.on('product:delete', async (id, cb) => {
+    try {
+      const ok = await pm.deleteProduct(id);
+      if (!ok) throw new Error('Product not found');
+      io.emit('products', await pm.getProducts());
+      cb && cb({ ok: true });
+    } catch (e) {
+      cb && cb({ ok: false, error: e.message });
+    }
+  });
+});
+
+server.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });

@@ -22,6 +22,8 @@
   },
   "homepage": "https://github.com/Gleyberson/api-tienda-web#readme",
   "dependencies": {
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "express-handlebars": "^8.0.1",
+    "socket.io": "^4.8.1"
   }
 }

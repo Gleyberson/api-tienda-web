@@ -1,0 +1,6 @@
+body { font-family: system-ui, sans-serif; margin: 2rem; }
+nav a { margin-right: 1rem; }
+ul { list-style: none; padding: 0; }
+li { margin: .5rem 0; }
+button { margin-left: .5rem; }
+#reateMsg, #createMsg { margin-top: .5rem; color: #c00; }

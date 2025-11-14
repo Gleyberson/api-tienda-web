@@ -1,0 +1,17 @@
+{{! Simple static render of products }}
+{{! title for the layout }}
+{{#if products}}
+  <h1>Productos ({{products.length}})</h1>
+  <ul>
+    {{#each products}}
+      <li>
+        <strong>{{this.title}}</strong>
+        <small>ID: {{this.id}}</small>
+        {{#if this.price}} - ${{this.price}} {{/if}}
+        {{#if this.code}} [código: {{this.code}}] {{/if}}
+      </li>
+    {{/each}}
+  </ul>
+{{else}}
+  <p>No hay productos aún.</p>
+{{/if}}
