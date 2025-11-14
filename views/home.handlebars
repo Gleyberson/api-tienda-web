@@ -6,6 +6,7 @@
     {{#each products}}
       <li>
         <strong>{{this.title}}</strong>
+        <img src="{{this.thumbnails.[0]}}" alt="Thumbnail" width="50" height="50" />
         <small>ID: {{this.id}}</small>
         {{#if this.price}} - ${{this.price}} {{/if}}
         {{#if this.code}} [código: {{this.code}}] {{/if}}

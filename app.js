@@ -6,6 +6,9 @@ const { Server } = require('socket.io');
 const { engine } = require('express-handlebars');
 const ProductManager = require('./src/ProductManager');
 const CartManager = require('./src/CartManager');
+// + uploads
+const fs = require('fs');
+const multer = require('multer');
 
 const app = express();
 const server = http.createServer(app);
@@ -15,6 +18,38 @@ const PORT = process.env.PORT || 8080;
 // Middlewares
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// + ensure img dir and configure multer
+const imgDir = path.join(__dirname, 'public', 'img');
+fs.mkdirSync(imgDir, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, imgDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname) || '';
+    const base = path.basename(file.originalname, ext).replace(/\s+/g, '-').toLowerCase();
+    cb(null, `${Date.now()}-${base}${ext}`);
+  }
+});
+const upload = multer({
+  storage,
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype && file.mimetype.startsWith('image/')) return cb(null, true);
+    cb(new Error('Only image files are allowed'));
+  },
+  limits: { fileSize: 5 * 1024 * 1024, files: 10 } // 5MB, máx 10
+});
+
+// + uploads endpoint: devuelve rutas públicas para usar en thumbnails
+app.post('/api/uploads', upload.array('thumbnails', 10), (req, res) => {
+  try {
+    const files = req.files || [];
+    const thumbnails = files.map(f => `/img/${f.filename}`);
+    res.json({ thumbnails });
+  } catch (err) {
+    res.status(400).json({ error: 'Upload failed', details: err.message });
+  }
+});
 
 // Handlebars setup
 app.engine('handlebars', engine());

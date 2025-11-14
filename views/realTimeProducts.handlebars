@@ -1,43 +1,48 @@
-<h1>Productos en tiempo real</h1>
+<h1>Real-time Products</h1>
 
 <section>
-  <h2>Crear producto (vía WebSocket)</h2>
+  <h2>Create product (via WebSocket)</h2>
   <form id="createForm">
-    <div><label>Título <input name="title" required /></label></div>
-    <div><label>Descripción <input name="description" /></label></div>
-    <div><label>Precio <input name="price" type="number" step="0.01" /></label></div>
-    <div><label>Código <input name="code" /></label></div>
+    <div><label>Title <input name="title" required /></label></div>
+    <div><label>Description <input name="description" /></label></div>
+    <div><label>Price <input name="price" type="number" step="0.01" /></label></div>
+    <div><label>Code <input name="code" /></label></div>
     <div><label>Stock <input name="stock" type="number" /></label></div>
-    <div><label>Categoría <input name="category" /></label></div>
-    <div><label>Miniaturas (URLs separadas por coma)
-      <input name="thumbnails" placeholder="/imgs/zap1.png, /imgs/zap2.png" />
-    </label></div>
+    <div><label>Category <input name="category" /></label></div>
+
     <div>
-      <label>Estado
+      <label>Thumbnails
+        <input name="thumbnails" type="file" accept="image/*" multiple />
+      </label>
+    </div>
+
+    <div>
+      <label>Status
         <select name="status">
-          <option value="">(sin definir)</option>
-          <option value="true">verdadero</option>
-          <option value="false">falso</option>
+          <option value="">(unset)</option>
+          <option value="true">true</option>
+          <option value="false">false</option>
         </select>
       </label>
     </div>
-    <button type="submit">Crear</button>
+    <button type="submit">Create</button>
     <div id="createMsg"></div>
   </form>
 </section>
 
 <section>
-  <h2>Productos (en vivo)</h2>
+  <h2>Products (live)</h2>
   <ul id="productList">
     {{#each products}}
       <li data-id="{{this.id}}">
+        <img src="{{this.thumbnails.[0]}}" alt="Thumbnail" width="50" height="50" />
         <strong>{{this.title}}</strong>
         <small>ID: {{this.id}}</small>
         {{#if this.price}} - ${{this.price}} {{/if}}
-        <button class="btn-delete" data-id="{{this.id}}">Eliminar</button>
+        <button class="btn-delete" data-id="{{this.id}}">Delete</button>
       </li>
     {{/each}}
   </ul>
 </section>
 
-<script defer src="/js/realtime.js"></script>
+<script src="/js/realtime.js" defer></script>
