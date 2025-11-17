@@ -38,10 +38,10 @@ Server running on http://localhost:8080
 - `public/js/realtime.js` → cliente WebSocket + subida de imágenes.
 
 ## Vistas
-- GET `/home`
+- GET `/home` (http://localhost:8080/home)
   - Lista estática de productos en tarjetas Bootstrap.
   - Si un producto tiene múltiples imágenes (`thumbnails`), se muestra un carrusel.
-- GET `/realtimeproducts`
+- GET `/realtimeproducts` (http://localhost:8080/realtimeproducts)
   - Formulario Bootstrap para crear productos (con carga de múltiples imágenes).
   - Grilla Bootstrap de productos que se actualiza en tiempo real.
 
