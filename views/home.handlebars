@@ -1,18 +1,50 @@
 {{! Simple static render of products }}
 {{! title for the layout }}
+<h1 class="h3 mb-4">Productos</h1>
+
 {{#if products}}
-  <h1>Productos ({{products.length}})</h1>
-  <ul>
+  <div class="row g-4">
     {{#each products}}
-      <li>
-        <strong>{{this.title}}</strong>
-        <img src="{{this.thumbnails.[0]}}" alt="Thumbnail" width="50" height="50" />
-        <small>ID: {{this.id}}</small>
-        {{#if this.price}} - ${{this.price}} {{/if}}
-        {{#if this.code}} [código: {{this.code}}] {{/if}}
-      </li>
+      <div class="col-12 col-md-6 col-lg-4">
+        <div class="card h-100 shadow-sm">
+          {{#if this.thumbnails}}
+            {{#if (gt this.thumbnails.length 1)}}
+              {{!-- Carousel si hay múltiples thumbnails --}}
+              <div id="carousel-{{this.id}}" class="carousel slide">
+                <div class="carousel-inner">
+                  {{#each this.thumbnails}}
+                    <div class="carousel-item {{#if @first}}active{{/if}}">
+                      <img src="{{this}}" class="d-block w-100" style="aspect-ratio: 16/9; object-fit: cover;" alt="Producto">
+                    </div>
+                  {{/each}}
+                </div>
+                <button class="carousel-control-prev" type="button" data-bs-target="#carousel-{{../id}}" data-bs-slide="prev">
+                  <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                </button>
+                <button class="carousel-control-next" type="button" data-bs-target="#carousel-{{../id}}" data-bs-slide="next">
+                  <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                </button>
+              </div>
+            {{else}}
+              <img src="{{this.thumbnails.[0]}}" class="card-img-top" style="aspect-ratio: 16/9; object-fit: cover;" alt="Producto">
+            {{/if}}
+          {{else}}
+            <img src="https://via.placeholder.com/800x450?text=Sin+imagen" class="card-img-top" style="aspect-ratio: 16/9; object-fit: cover;" alt="Producto">
+          {{/if}}
+
+          <div class="card-body">
+            <h5 class="card-title mb-1">{{this.title}}</h5>
+            <p class="text-muted small mb-2">ID: {{this.id}} • Código: {{this.code}}</p>
+            <p class="card-text">{{this.description}}</p>
+          </div>
+          <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+            <strong class="text-primary">${{this.price}}</strong>
+            <span class="badge text-bg-{{#if this.status}}success{{else}}secondary{{/if}}">{{#if this.status}}Activo{{else}}Inactivo{{/if}}</span>
+          </div>
+        </div>
+      </div>
     {{/each}}
-  </ul>
+  </div>
 {{else}}
-  <p>No hay productos aún.</p>
+  <div class="alert alert-info">No hay productos aún.</div>
 {{/if}}

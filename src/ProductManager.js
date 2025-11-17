@@ -4,7 +4,7 @@ const path = require('path');
 class ProductManager {
   constructor(filePath) {
     if (!filePath || typeof filePath !== 'string') {
-      throw new Error('ProductManager requires a valid file path string');
+      throw new Error('ProductManager requiere una ruta de archivo válida como cadena');
     }
     this.path = filePath;
   }
@@ -23,7 +23,7 @@ class ProductManager {
   // Helpers to normalize data types
   #toNumber(n) {
     const num = Number(n);
-    if (!Number.isFinite(num)) throw new Error('Expected a numeric value');
+    if (!Number.isFinite(num)) throw new Error('Se esperaba un valor numérico');
     return num;
   }
 
@@ -35,13 +35,13 @@ class ProductManager {
       if (s === 'true' || s === '1' || s === 'yes' || s === 'on') return true;
       if (s === 'false' || s === '0' || s === 'no' || s === 'off') return false;
     }
-    throw new Error('Expected a boolean value');
+    throw new Error('Se esperaba un valor booleano');
   }
 
   #toStringArray(arr) {
     if (arr == null) return [];
     if (Array.isArray(arr)) return arr.map((x) => String(x));
-    throw new Error('Expected thumbnails to be an array of strings');
+    throw new Error('Se esperaba un arreglo de cadenas para thumbnails');
   }
 
   async #readAll() {
@@ -72,7 +72,7 @@ class ProductManager {
     const required = ['title', 'description', 'code', 'price', 'status', 'stock', 'category', 'thumbnails'];
     for (const key of required) {
       if (product[key] === undefined || product[key] === null || product[key] === '') {
-        throw new Error(`Missing required field: ${key}`);
+        throw new Error(`Falta el campo requerido: ${key}`);
       }
     }
 
@@ -103,7 +103,7 @@ class ProductManager {
   // Read one
   async getProductById(id) {
     const pid = Number(id);
-    if (!Number.isFinite(pid)) throw new Error('Invalid product id');
+    if (!Number.isFinite(pid)) throw new Error('ID de producto inválido');
     const products = await this.#readAll();
     return products.find((p) => p.id === pid) || null;
   }
@@ -111,7 +111,7 @@ class ProductManager {
   // Update (optional, not required by endpoints but included for completeness)
   async updateProduct(id, updates) {
     const pid = Number(id);
-    if (!Number.isFinite(pid)) throw new Error('Invalid product id');
+    if (!Number.isFinite(pid)) throw new Error('ID de producto inválido');
 
     const products = await this.#readAll();
     const idx = products.findIndex((p) => p.id === pid);
@@ -148,7 +148,7 @@ class ProductManager {
   // Delete (optional)
   async deleteProduct(id) {
     const pid = Number(id);
-    if (!Number.isFinite(pid)) throw new Error('Invalid product id');
+    if (!Number.isFinite(pid)) throw new Error('ID de producto inválido');
 
     const products = await this.#readAll();
     const idx = products.findIndex((p) => p.id === pid);

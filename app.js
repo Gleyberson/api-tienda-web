@@ -23,6 +23,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 const imgDir = path.join(__dirname, 'public', 'img');
 fs.mkdirSync(imgDir, { recursive: true });
 
+// Definir límites en una constante para reusarlos y exponerlos en errores
+const uploadLimits = { fileSize: 5 * 1024 * 1024, files: 10 }; // 5MB por archivo, máx 10
+
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, imgDir),
   filename: (_req, file, cb) => {
@@ -35,24 +38,50 @@ const upload = multer({
   storage,
   fileFilter: (_req, file, cb) => {
     if (file.mimetype && file.mimetype.startsWith('image/')) return cb(null, true);
-    cb(new Error('Only image files are allowed'));
+    cb(new Error('Solo se permiten archivos de imagen'));
   },
-  limits: { fileSize: 5 * 1024 * 1024, files: 10 } // 5MB, máx 10
+  limits: uploadLimits
 });
 
-// + uploads endpoint: devuelve rutas públicas para usar en thumbnails
-app.post('/api/uploads', upload.array('thumbnails', 10), (req, res) => {
-  try {
+// + uploads endpoint con manejo explícito de errores de Multer
+app.post('/api/uploads', (req, res) => {
+  upload.array('thumbnails', uploadLimits.files)(req, res, (err) => {
+    if (err) {
+      // Mapear códigos de Multer a mensajes claros
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({
+          error: 'Archivo demasiado grande',
+          code: err.code,
+          limit: uploadLimits.fileSize // bytes
+        });
+      }
+      if (err.code === 'LIMIT_FILE_COUNT') {
+        return res.status(413).json({
+          error: 'Demasiados archivos',
+          code: err.code,
+          maxFiles: uploadLimits.files
+        });
+      }
+      // Otros errores (tipo MIME, etc.)
+      return res.status(400).json({
+        error: 'Error en la carga',
+        code: err.code || 'UPLOAD_ERROR',
+        details: err.message
+      });
+    }
     const files = req.files || [];
     const thumbnails = files.map(f => `/img/${f.filename}`);
     res.json({ thumbnails });
-  } catch (err) {
-    res.status(400).json({ error: 'Upload failed', details: err.message });
-  }
+  });
 });
 
 // Handlebars setup
-app.engine('handlebars', engine());
+app.engine('handlebars', engine({
+  helpers: {
+    gt: (a, b) => Number(a) > Number(b),
+    eq: (a, b) => a === b
+  }
+}));
 app.set('view engine', 'handlebars');
 app.set('views', path.join(__dirname, 'views'));
 
@@ -73,7 +102,7 @@ app.get('/home', async (_req, res) => {
     const products = await pm.getProducts();
     res.render('home', { products });
   } catch (err) {
-    res.status(500).send('Failed to render home');
+    res.status(500).send('Error al renderizar la página de inicio');
   }
 });
 
@@ -82,7 +111,7 @@ app.get('/realtimeproducts', async (_req, res) => {
     const products = await pm.getProducts();
     res.render('realTimeProducts', { products });
   } catch (err) {
-    res.status(500).send('Failed to render realtimeproducts');
+    res.status(500).send('Error al renderizar la página de productos en tiempo real');
   }
 });
 
@@ -94,7 +123,7 @@ app.get(productsBase, async (_req, res) => {
     const products = await pm.getProducts();
     res.json({ products });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to read products', details: err.message });
+    res.status(500).json({ error: 'Error al leer productos', details: err.message });
   }
 });
 
@@ -106,7 +135,7 @@ app.post(productsBase, async (req, res) => {
     io.emit('products', await pm.getProducts());
     res.status(201).json(created);
   } catch (err) {
-    res.status(400).json({ error: 'Failed to create product', details: err.message });
+    res.status(400).json({ error: 'Error al crear producto', details: err.message });
   }
 });
 
@@ -115,10 +144,10 @@ app.get(`${productsBase}/:pid`, async (req, res) => {
   try {
     const { pid } = req.params;
     const product = await pm.getProductById(pid);
-    if (!product) return res.status(404).json({ error: 'Product not found' });
+    if (!product) return res.status(404).json({ error: 'Producto no encontrado' });
     res.json(product);
   } catch (err) {
-    res.status(400).json({ error: 'Invalid request', details: err.message });
+    res.status(400).json({ error: 'Solicitud inválida', details: err.message });
   }
 });
 
@@ -127,12 +156,12 @@ app.put(`${productsBase}/:pid`, async (req, res) => {
   try {
     const { pid } = req.params;
     const updated = await pm.updateProduct(pid, req.body || {});
-    if (!updated) return res.status(404).json({ error: 'Product not found' });
+    if (!updated) return res.status(404).json({ error: 'Producto no encontrado' });
     // broadcast latest products to all sockets
     io.emit('products', await pm.getProducts());
     res.json(updated);
   } catch (err) {
-    res.status(400).json({ error: 'Failed to update product', details: err.message });
+    res.status(400).json({ error: 'Error al actualizar producto', details: err.message });
   }
 });
 
@@ -141,12 +170,12 @@ app.delete(`${productsBase}/:pid`, async (req, res) => {
   try {
     const { pid } = req.params;
     const ok = await pm.deleteProduct(pid);
-    if (!ok) return res.status(404).json({ error: 'Product not found' });
+    if (!ok) return res.status(404).json({ error: 'Producto no encontrado' });
     // broadcast latest products to all sockets
     io.emit('products', await pm.getProducts());
     res.status(204).send();
   } catch (err) {
-    res.status(400).json({ error: 'Failed to delete product', details: err.message });
+    res.status(400).json({ error: 'Error al eliminar producto', details: err.message });
   }
 });
 
@@ -160,7 +189,7 @@ app.post(cartsBase, async (req, res) => {
     const cart = await cm.createCart(products);
     res.status(201).json(cart);
   } catch (err) {
-    res.status(400).json({ error: 'Failed to create cart', details: err.message });
+    res.status(400).json({ error: 'Error al crear carrito', details: err.message });
   }
 });
 
@@ -169,10 +198,10 @@ app.get(`${cartsBase}/:cid`, async (req, res) => {
   try {
     const { cid } = req.params;
     const cart = await cm.getCartById(cid);
-    if (!cart) return res.status(404).json({ error: 'Cart not found' });
+    if (!cart) return res.status(404).json({ error: 'Carrito no encontrado' });
     res.json(cart.products);
   } catch (err) {
-    res.status(400).json({ error: 'Invalid request', details: err.message });
+    res.status(400).json({ error: 'Solicitud inválida', details: err.message });
   }
 });
 
@@ -186,7 +215,7 @@ app.post(`${cartsBase}/:cid/product/:pid`, async (req, res) => {
     if (!updated) return res.status(404).json({ error: 'Cart not found' });
     res.status(200).json(updated);
   } catch (err) {
-    res.status(400).json({ error: 'Failed to add product to cart', details: err.message });
+    res.status(400).json({ error: 'Error al agregar producto al carrito', details: err.message });
   }
 });
 
@@ -210,7 +239,7 @@ io.on('connection', async (socket) => {
   socket.on('product:delete', async (id, cb) => {
     try {
       const ok = await pm.deleteProduct(id);
-      if (!ok) throw new Error('Product not found');
+      if (!ok) throw new Error('Producto no encontrado');
       io.emit('products', await pm.getProducts());
       cb && cb({ ok: true });
     } catch (e) {

@@ -4,7 +4,7 @@ const path = require('path');
 class CartManager {
   constructor(filePath, productManager) {
     if (!filePath || typeof filePath !== 'string') {
-      throw new Error('CartManager requires a valid file path string');
+      throw new Error('CartManager requiere una ruta de archivo válida como string');
     }
     this.path = filePath;
     this.productManager = productManager;
@@ -55,12 +55,12 @@ class CartManager {
     for (const item of input) {
       const pid = Number(item && (item.id ?? item.product));
       const qty = Number(item && item.quantity);
-      if (!Number.isFinite(pid)) throw new Error('Invalid product id in initial products');
-      if (!Number.isFinite(qty) || qty <= 0) throw new Error('Invalid quantity in initial products');
+      if (!Number.isFinite(pid)) throw new Error('ID de producto inválido en productos iniciales');
+      if (!Number.isFinite(qty) || qty <= 0) throw new Error('Cantidad inválida en productos iniciales');
 
       if (this.productManager) {
         const exists = await this.productManager.getProductById(pid);
-        if (!exists) throw new Error(`Product does not exist: ${pid}`);
+        if (!exists) throw new Error(`El producto no existe: ${pid}`);
       }
       totals.set(pid, (totals.get(pid) || 0) + qty);
     }
@@ -75,7 +75,7 @@ class CartManager {
 
   async getCartById(id) {
     const cid = Number(id);
-    if (!Number.isFinite(cid)) throw new Error('Invalid cart id');
+    if (!Number.isFinite(cid)) throw new Error('ID de carrito inválido');
     const carts = await this.#readAll();
     return carts.find((c) => c.id === cid) || null;
   }
@@ -85,14 +85,14 @@ class CartManager {
     const pid = Number(productId);
     const quantity = Number(qty);
 
-    if (!Number.isFinite(cid)) throw new Error('Invalid cart id');
-    if (!Number.isFinite(pid)) throw new Error('Invalid product id');
-    if (!Number.isFinite(quantity) || quantity <= 0) throw new Error('Invalid quantity');
+    if (!Number.isFinite(cid)) throw new Error('ID de carrito inválido');
+    if (!Number.isFinite(pid)) throw new Error('ID de producto inválido');
+    if (!Number.isFinite(quantity) || quantity <= 0) throw new Error('Cantidad inválida');
 
     // Validate product existence using ProductManager
     if (this.productManager) {
       const exists = await this.productManager.getProductById(pid);
-      if (!exists) throw new Error('Product does not exist');
+      if (!exists) throw new Error('El producto no existe');
     }
 
     const carts = await this.#readAll();

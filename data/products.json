@@ -1,33 +1,5 @@
 [
   {
-    "id": 1,
-    "title": "Zapatos",
-    "description": "Zapatos de cuero 1",
-    "code": "ZAP-001",
-    "price": 1200,
-    "status": true,
-    "stock": 15,
-    "category": "calzado",
-    "thumbnails": [
-      "/img/zap1.png",
-      "/img/zap2.png"
-    ]
-  },
-  {
-    "id": 2,
-    "title": "Zapatos",
-    "description": "Zapatos de cuero 1",
-    "code": "ZAP-001",
-    "price": 1200,
-    "status": true,
-    "stock": 15,
-    "category": "calzado",
-    "thumbnails": [
-      "/img/zap1.png",
-      "/img/zap2.png"
-    ]
-  },
-  {
     "id": 3,
     "title": "12",
     "description": "description",
@@ -39,6 +11,19 @@
     "thumbnails": [
       "/img/1763149785401-test.webp",
       "/img/1763149785401-shopping.webp"
+    ]
+  },
+  {
+    "id": 4,
+    "title": "Pruducto Prueba",
+    "description": "description 001",
+    "code": "PR-001",
+    "price": 20000,
+    "status": true,
+    "stock": 20,
+    "category": "cat_12",
+    "thumbnails": [
+      "/img/1763386417754-imagen1-(1).jpeg"
     ]
   }
 ]

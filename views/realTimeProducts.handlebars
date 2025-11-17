@@ -1,48 +1,85 @@
-<h1>Real-time Products</h1>
+<div class="row g-4">
+  <div class="col-12 col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h5 mb-3">Crear producto (WebSocket)</h2>
+        <form id="createForm" novalidate>
+          <div class="mb-3">
+            <label class="form-label">Título</label>
+            <input name="title" class="form-control" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Descripción</label>
+            <textarea name="description" class="form-control" rows="2"></textarea>
+          </div>
+          <div class="row">
+            <div class="col-6 mb-3">
+              <label class="form-label">Precio</label>
+              <input name="price" type="number" step="0.01" min="0" class="form-control" />
+            </div>
+            <div class="col-6 mb-3">
+              <label class="form-label">Stock</label>
+              <input name="stock" type="number" min="0" class="form-control" />
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-6 mb-3">
+              <label class="form-label">Código</label>
+              <input name="code" class="form-control" />
+            </div>
+            <div class="col-6 mb-3">
+              <label class="form-label">Categoría</label>
+              <input name="category" class="form-control" />
+            </div>
+          </div>
 
-<section>
-  <h2>Create product (via WebSocket)</h2>
-  <form id="createForm">
-    <div><label>Title <input name="title" required /></label></div>
-    <div><label>Description <input name="description" /></label></div>
-    <div><label>Price <input name="price" type="number" step="0.01" /></label></div>
-    <div><label>Code <input name="code" /></label></div>
-    <div><label>Stock <input name="stock" type="number" /></label></div>
-    <div><label>Category <input name="category" /></label></div>
+          <div class="mb-3">
+            <label class="form-label">Imágenes (thumbnails)</label>
+            <input name="thumbnails" type="file" class="form-control" accept="image/*" multiple />
+            <div class="form-text">Hasta 10 archivos. Tamaño máximo por archivo: 5 MB. Se guardarán en /public/img y su ruta se agregará al JSON.</div>
+          </div>
 
-    <div>
-      <label>Thumbnails
-        <input name="thumbnails" type="file" accept="image/*" multiple />
-      </label>
+          <div class="mb-3">
+            <label class="form-label">Estado</label>
+            <select name="status" class="form-select">
+              <option value="">(sin definir)</option>
+              <option value="true">Activo</option>
+              <option value="false">Inactivo</option>
+            </select>
+          </div>
+
+          <button class="btn btn-primary w-100" type="submit">Crear</button>
+          <div id="createMsg" class="mt-3 small"></div>
+        </form>
+      </div>
     </div>
+  </div>
 
-    <div>
-      <label>Status
-        <select name="status">
-          <option value="">(unset)</option>
-          <option value="true">true</option>
-          <option value="false">false</option>
-        </select>
-      </label>
+  <div class="col-12 col-lg-8">
+    <h1 class="h4 mb-3">Productos (tiempo real)</h1>
+    <div id="productList" class="row g-4">
+      {{#each products}}
+        <div class="col-12 col-md-6">
+          <div class="card h-100 shadow-sm" data-id="{{this.id}}">
+            {{#if this.thumbnails}}
+              <img src="{{this.thumbnails.[0]}}" class="card-img-top" style="aspect-ratio: 16/9; object-fit: cover;" alt="Producto">
+            {{else}}
+              <img src="https://via.placeholder.com/800x450?text=Sin+imagen" class="card-img-top" style="aspect-ratio: 16/9; object-fit: cover;" alt="Producto">
+            {{/if}}
+            <div class="card-body">
+              <h5 class="card-title mb-1">{{this.title}}</h5>
+              <p class="text-muted small mb-2">ID: {{this.id}} • Código: {{this.code}}</p>
+              <p class="card-text">{{this.description}}</p>
+            </div>
+            <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+              <strong class="text-primary">${{this.price}}</strong>
+              <button class="btn btn-outline-danger btn-sm btn-delete" data-id="{{this.id}}">Eliminar</button>
+            </div>
+          </div>
+        </div>
+      {{/each}}
     </div>
-    <button type="submit">Create</button>
-    <div id="createMsg"></div>
-  </form>
-</section>
-
-<section>
-  <h2>Products (live)</h2>
-  <ul id="productList">
-    {{#each products}}
-      <li data-id="{{this.id}}">
-        <img src="{{this.thumbnails.[0]}}" alt="Thumbnail" width="50" height="50" />
-        <strong>{{this.title}}</strong>
-        <small>ID: {{this.id}}</small>
-        {{#if this.price}} - ${{this.price}} {{/if}}
-        <button class="btn-delete" data-id="{{this.id}}">Delete</button>
-      </li>
-    {{/each}}
-  </ul>
-</section>
+  </div>
+</div>
 
 <script src="/js/realtime.js" defer></script>
