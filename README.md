@@ -131,7 +131,7 @@ Ejemplos de body:
     { "id": 2, "quantity": 1 }
   ]
 }
-
+```
 - Agregar producto al carrito (POST `/api/carts/:cid/product/:pid`)
 ```json
 { "quantity": 2 }
