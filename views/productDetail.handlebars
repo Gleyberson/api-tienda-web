@@ -1,0 +1,46 @@
+<div class="row g-4">
+  <div class="col-12 col-lg-6">
+    <div class="card shadow-sm">
+      {{#if product.thumbnails}}
+        <img src="{{product.thumbnails.[0]}}" class="card-img-top" style="aspect-ratio: 16/9; object-fit: cover;" alt="Producto">
+      {{else}}
+        <img src="https://via.placeholder.com/800x450?text=Sin+imagen" class="card-img-top" style="aspect-ratio: 16/9; object-fit: cover;" alt="Producto">
+      {{/if}}
+      <div class="card-body">
+        <h1 class="h4 mb-2">{{product.title}}</h1>
+        <p class="text-muted">Código: {{product.code}}</p>
+        <p class="mb-3">{{product.description}}</p>
+        <ul class="list-group list-group-flush">
+          <li class="list-group-item"><strong>Precio:</strong> ${{product.price}}</li>
+          <li class="list-group-item"><strong>Categoría:</strong> {{product.category}}</li>
+          <li class="list-group-item"><strong>Stock:</strong> {{product.stock}}</li>
+          <li class="list-group-item"><strong>Estado:</strong> {{#if product.status}}Activo{{else}}Inactivo{{/if}}</li>
+        </ul>
+      </div>
+      <div class="card-footer bg-white d-flex gap-2">
+        <button id="btnAdd" class="btn btn-primary">Agregar al carrito</button>
+        <a class="btn btn-outline-secondary" href="/products">Volver</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.getElementById('btnAdd')?.addEventListener('click', async () => {
+    const pid = '{{product.id}}';
+    let cid = localStorage.getItem('cid');
+    try {
+      if (!cid) {
+        const created = await fetch('/api/carts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        const cart = await created.json();
+        cid = cart.id || cart._id || cart.cid;
+        localStorage.setItem('cid', cid);
+      }
+      const res = await fetch(`/api/carts/${cid}/product/${pid}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"quantity":1}' });
+      if (!res.ok) throw new Error('No se pudo agregar');
+      window.location.href = `/carts/${cid}/view`;
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  });
+</script>

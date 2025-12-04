@@ -6,14 +6,20 @@ const { Server } = require('socket.io');
 const { engine } = require('express-handlebars');
 const ProductManager = require('./src/ProductManager');
 const CartManager = require('./src/CartManager');
-// + uploads
 const fs = require('fs');
 const multer = require('multer');
+const mongoose = require('mongoose');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 const PORT = process.env.PORT || 8080;
+
+// Connect MongoDB (test_coder)
+mongoose.set('strictQuery', true);
+mongoose.connect('mongodb://127.0.0.1:27017/test_coder')
+  .then(() => console.log('MongoDB connected (test_coder)'))
+  .catch((err) => console.error('MongoDB connection error:', err));
 
 // Middlewares
 app.use(express.json());
@@ -85,11 +91,9 @@ app.engine('handlebars', engine({
 app.set('view engine', 'handlebars');
 app.set('views', path.join(__dirname, 'views'));
 
-// Data store path
-const productsPath = path.join(__dirname, 'data', 'products.json');
-const cartsPath = path.join(__dirname, 'data', 'carts.json');
-const pm = new ProductManager(productsPath);
-const cm = new CartManager(cartsPath, pm);
+// Managers
+const pm = new ProductManager();
+const cm = new CartManager(pm);
 
 // Health
 app.get('/', (_req, res) => {
@@ -108,22 +112,71 @@ app.get('/home', async (_req, res) => {
 
 app.get('/realtimeproducts', async (_req, res) => {
   try {
-    const products = await pm.getProducts();
-    res.render('realTimeProducts', { products });
+    // Paginar también en la vista realtime (usa los defaults)
+    const { payload: products, page, totalPages, hasPrevPage, hasNextPage, prevLink, nextLink } = await pm.paginate({ basePath: '/realtimeproducts' });
+    res.render('realTimeProducts', { products, page, totalPages, hasPrevPage, hasNextPage, prevLink, nextLink });
   } catch (err) {
     res.status(500).send('Error al renderizar la página de productos en tiempo real');
   }
 });
 
+// Products view with pagination
+app.get('/products', async (req, res) => {
+  try {
+    const { limit = '10', page = '1', sort, query } = req.query;
+    const result = await pm.paginate({ limit, page, sort, query, basePath: '/products' });
+    res.render('products', { 
+      products: result.payload,
+      page: result.page,
+      totalPages: result.totalPages,
+      hasPrevPage: result.hasPrevPage,
+      hasNextPage: result.hasNextPage,
+      prevLink: result.prevLink,
+      nextLink: result.nextLink,
+      query,
+      sort,
+      limit
+    });
+  } catch (err) {
+    res.status(500).send('Error al renderizar productos');
+  }
+});
+
+// Product detail
+app.get('/products/:pid', async (req, res) => {
+  try {
+    const { pid } = req.params;
+    const product = await pm.getProductById(pid);
+    if (!product) return res.status(404).send('Producto no encontrado');
+    res.render('productDetail', { product });
+  } catch (err) {
+    res.status(500).send('Error al renderizar detalle de producto');
+  }
+});
+
+// Cart detail view (populate)
+app.get('/carts/:cid/view', async (req, res) => {
+  try {
+    const { cid } = req.params;
+    const cart = await cm.getCartById(cid, { populate: true });
+    if (!cart) return res.status(404).send('Carrito no encontrado');
+    res.render('cart', { cart });
+  } catch (err) {
+    res.status(500).send('Error al renderizar carrito');
+  }
+});
+
 // Products API (/api/products)
 const productsBase = '/api/products';
-// GET /api/products
-app.get(productsBase, async (_req, res) => {
+
+// GET /api/products with pagination, filter, sort (Mongo)
+app.get(productsBase, async (req, res) => {
   try {
-    const products = await pm.getProducts();
-    res.json({ products });
+    const { limit = '10', page = '1', sort, query } = req.query;
+    const result = await pm.paginate({ limit, page, sort, query, basePath: productsBase });
+    res.json(result);
   } catch (err) {
-    res.status(500).json({ error: 'Error al leer productos', details: err.message });
+    res.status(500).json({ status: 'error', error: 'Error al leer productos', details: err.message });
   }
 });
 
@@ -131,7 +184,6 @@ app.get(productsBase, async (_req, res) => {
 app.post(productsBase, async (req, res) => {
   try {
     const created = await pm.addProduct(req.body || {});
-    // broadcast latest products to all sockets
     io.emit('products', await pm.getProducts());
     res.status(201).json(created);
   } catch (err) {
@@ -157,7 +209,6 @@ app.put(`${productsBase}/:pid`, async (req, res) => {
     const { pid } = req.params;
     const updated = await pm.updateProduct(pid, req.body || {});
     if (!updated) return res.status(404).json({ error: 'Producto no encontrado' });
-    // broadcast latest products to all sockets
     io.emit('products', await pm.getProducts());
     res.json(updated);
   } catch (err) {
@@ -171,7 +222,6 @@ app.delete(`${productsBase}/:pid`, async (req, res) => {
     const { pid } = req.params;
     const ok = await pm.deleteProduct(pid);
     if (!ok) return res.status(404).json({ error: 'Producto no encontrado' });
-    // broadcast latest products to all sockets
     io.emit('products', await pm.getProducts());
     res.status(204).send();
   } catch (err) {
@@ -193,11 +243,11 @@ app.post(cartsBase, async (req, res) => {
   }
 });
 
-// GET /api/carts/:cid -> list products in cart
+// GET /api/carts/:cid -> populated products
 app.get(`${cartsBase}/:cid`, async (req, res) => {
   try {
     const { cid } = req.params;
-    const cart = await cm.getCartById(cid);
+    const cart = await cm.getCartById(cid, { populate: true });
     if (!cart) return res.status(404).json({ error: 'Carrito no encontrado' });
     res.json(cart.products);
   } catch (err) {
@@ -205,17 +255,66 @@ app.get(`${cartsBase}/:cid`, async (req, res) => {
   }
 });
 
-// POST /api/carts/:cid/product/:pid -> add product to cart (increments quantity)
+// POST /api/carts/:cid/product/:pid -> add product (increments quantity)
 app.post(`${cartsBase}/:cid/product/:pid`, async (req, res) => {
   try {
     const { cid, pid } = req.params;
-    // By default increment by 1; allow optional body.quantity
     const qty = req.body && req.body.quantity ? Number(req.body.quantity) : 1;
     const updated = await cm.addProductToCart(cid, pid, qty);
-    if (!updated) return res.status(404).json({ error: 'Cart not found' });
+    if (!updated) return res.status(404).json({ error: 'Carrito no encontrado' });
     res.status(200).json(updated);
   } catch (err) {
     res.status(400).json({ error: 'Error al agregar producto al carrito', details: err.message });
+  }
+});
+
+// DELETE api/carts/:cid/products/:pid -> remove one product from cart
+app.delete(`${cartsBase}/:cid/products/:pid`, async (req, res) => {
+  try {
+    const { cid, pid } = req.params;
+    const cart = await cm.removeProduct(cid, pid);
+    if (!cart) return res.status(404).json({ error: 'Carrito o producto no encontrado' });
+    res.json(cart);
+  } catch (err) {
+    res.status(400).json({ error: 'Error al eliminar producto del carrito', details: err.message });
+  }
+});
+
+// PUT api/carts/:cid -> replace all products with provided array
+app.put(`${cartsBase}/:cid`, async (req, res) => {
+  try {
+    const { cid } = req.params;
+    const items = Array.isArray(req.body?.products) ? req.body.products : [];
+    const updated = await cm.replaceProducts(cid, items);
+    if (!updated) return res.status(404).json({ error: 'Carrito no encontrado' });
+    res.json(updated);
+  } catch (err) {
+    res.status(400).json({ error: 'Error al actualizar carrito', details: err.message });
+  }
+});
+
+// PUT api/carts/:cid/products/:pid -> update quantity only
+app.put(`${cartsBase}/:cid/products/:pid`, async (req, res) => {
+  try {
+    const { cid, pid } = req.params;
+    const quantity = Number(req.body?.quantity);
+    const updated = await cm.updateProductQuantity(cid, pid, quantity);
+    if (!updated) return res.status(404).json({ error: 'Carrito o producto no encontrado' });
+    res.json(updated);
+  } catch (err) {
+    res.status(400).json({ error: 'Error al actualizar cantidad', details: err.message });
+  }
+});
+
+// DELETE api/carts/:cid -> empty cart
+app.delete(`${cartsBase}/:cid`, async (req, res) => {
+  try {
+    const { cid } = req.params;
+    const emptied = await cm.emptyCart(cid);
+    if (!emptied) return res.status(404).json({ error: 'Carrito no encontrado' });
+    res.status(204).send();
+  } catch (err) {
+    res.status(400).json({ error: 'Error al vaciar carrito', details: err.message });
   }
 });
 

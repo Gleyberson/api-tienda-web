@@ -1,0 +1,90 @@
+<h1 class="h3 mb-4">Productos</h1>
+
+<div class="mb-3">
+  <form class="row g-2" method="get" action="/products">
+    <div class="col-12 col-md-3">
+      <label class="form-label">Categoría / Estado</label>
+      <input type="text" name="query" value="{{query}}" class="form-control" placeholder="category:calzado o status:true" />
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label">Orden</label>
+      <select name="sort" class="form-select">
+        <option value="">(sin ordenar)</option>
+        <option value="asc" {{#if (eq sort "asc")}}selected{{/if}}>Precio asc</option>
+        <option value="desc" {{#if (eq sort "desc")}}selected{{/if}}>Precio desc</option>
+      </select>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label">Por página</label>
+      <input type="number" name="limit" value="{{limit}}" min="1" class="form-control" />
+    </div>
+    <div class="col-12 col-md-2 align-self-end">
+      <button class="btn btn-primary w-100" type="submit">Aplicar</button>
+    </div>
+  </form>
+</div>
+
+{{#if products}}
+  <div class="row g-4">
+    {{#each products}}
+      <div class="col-12 col-md-6 col-lg-4">
+        <div class="card h-100 shadow-sm">
+          {{#if this.thumbnails}}
+            <img src="{{this.thumbnails.[0]}}" class="card-img-top" style="aspect-ratio: 16/9; object-fit: cover;" alt="Producto">
+          {{else}}
+            <img src="https://via.placeholder.com/800x450?text=Sin+imagen" class="card-img-top" style="aspect-ratio: 16/9; object-fit: cover;" alt="Producto">
+          {{/if}}
+          <div class="card-body">
+            <h5 class="card-title mb-1">{{this.title}}</h5>
+            <p class="text-muted small mb-2">Código: {{this.code}} • Categoría: {{this.category}}</p>
+            <p class="card-text">{{this.description}}</p>
+          </div>
+          <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+            <strong class="text-primary">${{this.price}}</strong>
+            <div class="btn-group">
+              <a class="btn btn-outline-secondary btn-sm" href="/products/{{this.id}}">Ver detalles</a>
+              <button class="btn btn-outline-primary btn-sm btn-add-cart" data-id="{{this.id}}">Agregar al carrito</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    {{/each}}
+  </div>
+
+  <nav class="mt-4" aria-label="Paginación">
+    <ul class="pagination">
+      <li class="page-item {{#unless hasPrevPage}}disabled{{/unless}}">
+        <a class="page-link" href="{{#if hasPrevPage}}{{prevLink}}{{else}}#{{/if}}">Anterior</a>
+      </li>
+      <li class="page-item disabled"><span class="page-link">Página {{page}} de {{totalPages}}</span></li>
+      <li class="page-item {{#unless hasNextPage}}disabled{{/unless}}">
+        <a class="page-link" href="{{#if hasNextPage}}{{nextLink}}{{else}}#{{/if}}">Siguiente</a>
+      </li>
+    </ul>
+  </nav>
+{{else}}
+  <div class="alert alert-info">No hay productos para mostrar.</div>
+{{/if}}
+
+<script>
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.btn-add-cart');
+    if (!btn) return;
+    const pid = btn.getAttribute('data-id');
+    const cid = localStorage.getItem('cid');
+    try {
+      let cartId = cid;
+      if (!cartId) {
+        const created = await fetch('/api/carts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        const cart = await created.json();
+        cartId = cart.id || cart._id || cart.cid;
+        localStorage.setItem('cid', cartId);
+      }
+      const res = await fetch(`/api/carts/${cartId}/product/${pid}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"quantity":1}' });
+      if (!res.ok) throw new Error('No se pudo agregar');
+      alert('Producto agregado al carrito');
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  });
+</script>

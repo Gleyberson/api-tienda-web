@@ -1,73 +1,38 @@
-const fs = require('fs').promises;
-const path = require('path');
+const mongoose = require('mongoose');
+
+const productSchema = new mongoose.Schema({
+  title: { type: String, required: [true, 'title requerido'] },
+  description: { type: String, required: [true, 'description requerido'] },
+  code: { type: String, required: [true, 'code requerido'], unique: true, index: true },
+  price: { type: Number, required: [true, 'price requerido'], min: 0 },
+  status: { type: Boolean, required: [true, 'status requerido'], default: true },
+  stock: { type: Number, required: [true, 'stock requerido'], min: 0 },
+  category: { type: String, required: [true, 'category requerido'] },
+  thumbnails: { type: [String], default: [] }
+}, { timestamps: true, collection: 'products' }); // use requested collection name
+
+const Product = mongoose.models.Product || mongoose.model('Product', productSchema);
+
+const oid = (v) => (typeof v === 'string' && mongoose.Types.ObjectId.isValid(v) ? new mongoose.Types.ObjectId(v) : null);
+const mapDoc = (doc) => {
+  if (!doc) return null;
+  const d = doc.toObject ? doc.toObject() : doc;
+  return {
+    id: String(d._id),
+    title: d.title,
+    description: d.description,
+    code: d.code,
+    price: d.price,
+    status: d.status,
+    stock: d.stock,
+    category: d.category,
+    thumbnails: Array.isArray(d.thumbnails) ? d.thumbnails : []
+  };
+};
 
 class ProductManager {
-  constructor(filePath) {
-    if (!filePath || typeof filePath !== 'string') {
-      throw new Error('ProductManager requiere una ruta de archivo válida como cadena');
-    }
-    this.path = filePath;
-  }
+  constructor() {}
 
-  // Internal: ensures the directory and file exist
-  async #ensureStore() {
-    const dir = path.dirname(this.path);
-    await fs.mkdir(dir, { recursive: true });
-    try {
-      await fs.access(this.path);
-    } catch {
-      await fs.writeFile(this.path, JSON.stringify([], null, 2), 'utf-8');
-    }
-  }
-
-  // Helpers to normalize data types
-  #toNumber(n) {
-    const num = Number(n);
-    if (!Number.isFinite(num)) throw new Error('Se esperaba un valor numérico');
-    return num;
-  }
-
-  #toBoolean(v) {
-    if (typeof v === 'boolean') return v;
-    if (typeof v === 'number') return v !== 0;
-    if (typeof v === 'string') {
-      const s = v.trim().toLowerCase();
-      if (s === 'true' || s === '1' || s === 'yes' || s === 'on') return true;
-      if (s === 'false' || s === '0' || s === 'no' || s === 'off') return false;
-    }
-    throw new Error('Se esperaba un valor booleano');
-  }
-
-  #toStringArray(arr) {
-    if (arr == null) return [];
-    if (Array.isArray(arr)) return arr.map((x) => String(x));
-    throw new Error('Se esperaba un arreglo de cadenas para thumbnails');
-  }
-
-  async #readAll() {
-    await this.#ensureStore();
-    const raw = await fs.readFile(this.path, 'utf-8');
-    try {
-      const data = JSON.parse(raw);
-      return Array.isArray(data) ? data : [];
-    } catch {
-      // If file is corrupted, reset to empty array to avoid server crash
-      return [];
-    }
-  }
-
-  async #writeAll(products) {
-    await this.#ensureStore();
-    await fs.writeFile(this.path, JSON.stringify(products, null, 2), 'utf-8');
-  }
-
-  async #nextId(products) {
-    if (!products.length) return 1;
-    const maxId = products.reduce((max, p) => (p.id > max ? p.id : max), 0);
-    return maxId + 1;
-  }
-
-  // Create
   async addProduct(product) {
     const required = ['title', 'description', 'code', 'price', 'status', 'stock', 'category', 'thumbnails'];
     for (const key of required) {
@@ -75,88 +40,114 @@ class ProductManager {
         throw new Error(`Falta el campo requerido: ${key}`);
       }
     }
-
-    const products = await this.#readAll();
-
-    const newProduct = {
-      id: await this.#nextId(products),
-      title: String(product.title),
-      description: String(product.description),
-      code: String(product.code),
-      price: this.#toNumber(product.price),
-      status: this.#toBoolean(product.status),
-      stock: this.#toNumber(product.stock),
-      category: String(product.category),
-      thumbnails: this.#toStringArray(product.thumbnails),
-    };
-
-    products.push(newProduct);
-    await this.#writeAll(products);
-    return newProduct;
+    try {
+      const created = await Product.create({
+        title: String(product.title),
+        description: String(product.description),
+        code: String(product.code),
+        price: Number(product.price),
+        status: Boolean(product.status),
+        stock: Number(product.stock),
+        category: String(product.category),
+        thumbnails: Array.isArray(product.thumbnails) ? product.thumbnails.map(String) : []
+      });
+      return mapDoc(created);
+    } catch (e) {
+      if (e && e.code === 11000) throw new Error('El código de producto ya existe');
+      throw e;
+    }
   }
 
-  // Read all
   async getProducts() {
-    return await this.#readAll();
+    const docs = await Product.find({}).sort({ createdAt: -1 }).lean();
+    return docs.map(mapDoc);
   }
 
-  // Read one
   async getProductById(id) {
-    const pid = Number(id);
-    if (!Number.isFinite(pid)) throw new Error('ID de producto inválido');
-    const products = await this.#readAll();
-    return products.find((p) => p.id === pid) || null;
+    const _id = oid(id);
+    if (!_id) throw new Error('ID de producto inválido');
+    const doc = await Product.findById(_id).lean();
+    return mapDoc(doc);
   }
 
-  // Update (optional, not required by endpoints but included for completeness)
   async updateProduct(id, updates) {
-    const pid = Number(id);
-    if (!Number.isFinite(pid)) throw new Error('ID de producto inválido');
+    const _id = oid(id);
+    if (!_id) throw new Error('ID de producto inválido');
 
-    const products = await this.#readAll();
-    const idx = products.findIndex((p) => p.id === pid);
-    if (idx === -1) return null;
-
-    const immutable = ['id'];
-    const allowed = ['title', 'description', 'code', 'price', 'status', 'stock', 'category', 'thumbnails', 'thumbnail'];
+    const allowed = ['title', 'description', 'code', 'price', 'status', 'stock', 'category', 'thumbnails'];
     const sanitized = {};
-
-    for (const key of Object.keys(updates || {})) {
-      if (immutable.includes(key)) continue;
-      if (!allowed.includes(key)) continue;
-      switch (key) {
+    for (const k of Object.keys(updates || {})) {
+      if (!allowed.includes(k)) continue;
+      switch (k) {
         case 'price':
         case 'stock':
-          sanitized[key] = this.#toNumber(updates[key]);
+          sanitized[k] = Number(updates[k]);
           break;
         case 'status':
-          sanitized[key] = this.#toBoolean(updates[key]);
+          sanitized[k] = Boolean(updates[k]);
           break;
         case 'thumbnails':
-          sanitized[key] = this.#toStringArray(updates[key]);
+          sanitized[k] = Array.isArray(updates[k]) ? updates[k].map(String) : [];
           break;
         default:
-          sanitized[key] = String(updates[key]);
+          sanitized[k] = String(updates[k]);
       }
     }
 
-    products[idx] = { ...products[idx], ...sanitized };
-    await this.#writeAll(products);
-    return products[idx];
+    const doc = await Product.findByIdAndUpdate(_id, sanitized, { new: true, runValidators: true }).lean();
+    return mapDoc(doc);
   }
 
-  // Delete (optional)
   async deleteProduct(id) {
-    const pid = Number(id);
-    if (!Number.isFinite(pid)) throw new Error('ID de producto inválido');
+    const _id = oid(id);
+    if (!_id) throw new Error('ID de producto inválido');
+    const res = await Product.findByIdAndDelete(_id).lean();
+    return Boolean(res);
+  }
 
-    const products = await this.#readAll();
-    const idx = products.findIndex((p) => p.id === pid);
-    if (idx === -1) return false;
+  // Pagination + filter + sort for /api/products
+  async paginate({ limit = '10', page = '1', sort, query, basePath = '/api/products' } = {}) {
+    const nLimit = Math.max(1, Number(limit) || 10);
+    const nPage = Math.max(1, Number(page) || 1);
 
-    products.splice(idx, 1);
-    await this.#writeAll(products);
-    return true;
+    const filter = {};
+    if (query) {
+      const [key, rawVal] = String(query).split(':');
+      if (key === 'category' && rawVal) filter.category = String(rawVal);
+      else if (key === 'status' && rawVal) {
+        const val = String(rawVal).toLowerCase();
+        filter.status = val === 'true' || val === '1' || val === 'yes';
+      }
+    }
+
+    const sortOpt = {};
+    if (sort === 'asc' || sort === 'desc') sortOpt.price = sort === 'asc' ? 1 : -1;
+
+    const total = await Product.countDocuments(filter);
+    const totalPages = Math.max(1, Math.ceil(total / nLimit));
+    const currPage = Math.min(nPage, totalPages);
+    const skip = (currPage - 1) * nLimit;
+
+    const docs = await Product.find(filter).sort(sortOpt).skip(skip).limit(nLimit).lean();
+    const payload = docs.map(mapDoc);
+
+    const hasPrevPage = currPage > 1;
+    const hasNextPage = currPage < totalPages;
+    const mkLink = (p) =>
+      `${basePath}?limit=${nLimit}&page=${p}${sort ? `&sort=${sort}` : ''}${query ? `&query=${encodeURIComponent(query)}` : ''}`;
+
+    return {
+      status: 'success',
+      payload,
+      totalPages,
+      prevPage: hasPrevPage ? currPage - 1 : null,
+      nextPage: hasNextPage ? currPage + 1 : null,
+      page: currPage,
+      hasPrevPage,
+      hasNextPage,
+      prevLink: hasPrevPage ? mkLink(currPage - 1) : null,
+      nextLink: hasNextPage ? mkLink(currPage + 1) : null
+    };
   }
 }
 

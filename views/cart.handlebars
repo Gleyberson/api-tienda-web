@@ -1,0 +1,72 @@
+<h1 class="h4 mb-4">Carrito</h1>
+
+{{#if cart}}
+  <div class="mb-3">
+    <p class="text-muted">ID: {{cart.id}}</p>
+  </div>
+  {{#if cart.products}}
+    <div class="row g-4">
+      {{#each cart.products}}
+        <div class="col-12 col-md-6">
+          <div class="card h-100 shadow-sm">
+            {{#if this.product.thumbnails}}
+              <img src="{{this.product.thumbnails.[0]}}" class="card-img-top" style="aspect-ratio: 16/9; object-fit: cover;" alt="Producto">
+            {{else}}
+              <img src="https://via.placeholder.com/800x450?text=Sin+imagen" class="card-img-top" style="aspect-ratio: 16/9; object-fit: cover;" alt="Producto">
+            {{/if}}
+            <div class="card-body">
+              <h5 class="card-title mb-1">{{this.product.title}}</h5>
+              <p class="text-muted small mb-2">Código: {{this.product.code}} • Categoría: {{this.product.category}}</p>
+              <p class="card-text">{{this.product.description}}</p>
+            </div>
+            <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+              <strong class="text-primary">${{this.product.price}}</strong>
+              <div>
+                <span class="badge text-bg-secondary">Cantidad: {{this.quantity}}</span>
+                <button class="btn btn-outline-danger btn-sm ms-2 btn-remove" data-id="{{this.product.id}}">Eliminar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      {{/each}}
+    </div>
+  {{else}}
+    <div class="alert alert-info">El carrito está vacío.</div>
+  {{/if}}
+{{else}}
+  <div class="alert alert-danger">Carrito no encontrado.</div>
+{{/if}}
+
+<div class="mt-4 d-flex gap-2">
+  <a class="btn btn-outline-secondary" href="/products">Seguir comprando</a>
+  {{#if cart}}
+    <button id="btnEmpty" class="btn btn-outline-danger">Vaciar carrito</button>
+  {{/if}}
+</div>
+
+<script>
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.btn-remove');
+    if (!btn) return;
+    const pid = btn.getAttribute('data-id');
+    const cid = '{{cart.id}}';
+    try {
+      const res = await fetch(`/api/carts/${cid}/products/${pid}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('No se pudo eliminar');
+      location.reload();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  });
+
+  document.getElementById('btnEmpty')?.addEventListener('click', async () => {
+    const cid = '{{cart.id}}';
+    try {
+      const res = await fetch(`/api/carts/${cid}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('No se pudo vaciar el carrito');
+      location.reload();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  });
+</script>

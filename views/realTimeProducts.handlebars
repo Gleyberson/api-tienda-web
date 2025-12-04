@@ -79,6 +79,17 @@
         </div>
       {{/each}}
     </div>
+    <nav class="mt-4" aria-label="Paginación">
+      <ul class="pagination">
+        <li class="page-item {{#unless hasPrevPage}}disabled{{/unless}}">
+          <a class="page-link" href="{{#if hasPrevPage}}{{prevLink}}{{else}}#{{/if}}">Anterior</a>
+        </li>
+        <li class="page-item disabled"><span class="page-link">Página {{page}} de {{totalPages}}</span></li>
+        <li class="page-item {{#unless hasNextPage}}disabled{{/unless}}">
+          <a class="page-link" href="{{#if hasNextPage}}{{nextLink}}{{else}}#{{/if}}">Siguiente</a>
+        </li>
+      </ul>
+    </nav>
   </div>
 </div>
 

@@ -1,6 +1,6 @@
 # API Tienda Web
 
-Servidor Express con persistencia en archivos para gestionar productos y carritos usando `ProductManager` y `CartManager`. Render de vistas con Handlebars, actualizaciones en tiempo real con Socket.IO y carga de imágenes con Multer hacia `public/img`.
+Servidor Express con persistencia en MongoDB (Mongoose) para gestionar productos y carritos usando `ProductManager` y `CartManager`. Render de vistas con Handlebars, actualizaciones en tiempo real con Socket.IO y carga de imágenes con Multer hacia `public/img`.
 
 ## Tecnologías
 - Node.js + Express
@@ -8,10 +8,19 @@ Servidor Express con persistencia en archivos para gestionar productos y carrito
 - Socket.IO
 - Multer (subida de imágenes)
 - Bootstrap 5 (estilos)
-- Almacenamiento en archivos JSON (productos y carritos)
+- MongoDB + Mongoose (persistencia en BD)
 
 ## Requisitos
 - Node.js 16+
+
+## Requisitos
+- Node.js 16+
+- MongoDB local instalado (Community) y corriendo en `127.0.0.1:27017`
+- MongoDB Compass (opcional para visualizar datos)
+
+Base de datos usada:
+- `test_coder`
+- Colecciones: `products` (products) y `carts` (carts)
 
 ## Instalación
 ```sh
@@ -31,8 +40,8 @@ Server running on http://localhost:8080
 
 ## Estructura relevante
 - `app.js` → servidor, vistas, APIs, Socket.IO, endpoint de uploads (Multer).
-- `src/ProductManager.js` → CRUD de productos en `data/products.json`.
-- `src/CartManager.js` → gestión de carritos en `data/carts.json`.
+- `src/ProductManager.js` → CRUD de productos en MongoDB (colección `tienda_test`).
+- `src/CartManager.js` → gestión de carritos en MongoDB (colección `carts`, referencia a `Product`).
 - `views/` → Handlebars (`home.handlebars`, `realTimeProducts.handlebars`, `layouts/main.handlebars`).
 - `public/` → estáticos; las imágenes se guardan en `public/img`.
 - `public/js/realtime.js` → cliente WebSocket + subida de imágenes.
@@ -87,7 +96,7 @@ Flujo de creación en `/realtimeproducts`:
 ## API REST
 
 Productos (`/api/products`)
-- GET `/api/products` → `{ products: [...] }`
+- GET `/api/products` → con filtros, orden y paginación
 - GET `/api/products/:pid` → objeto de producto o 404 si no existe
 - POST `/api/products` → crea producto (201)
 - PUT `/api/products/:pid` → actualiza campos permitidos (200)
@@ -117,18 +126,52 @@ Ejemplo POST crear producto (si ya subiste imágenes con `/api/uploads`):
 }
 ```
 
+### Filtros, orden y paginación (GET `/api/products`)
+- Query params soportados:
+  - `limit` (opcional, default 10): cantidad de elementos por página
+  - `page` (opcional, default 1): número de página
+  - `sort` (opcional): `asc` o `desc` por precio
+  - `query` (opcional): filtro. Formatos: `category:<valor>` o `status:true|false`
+
+Ejemplos en navegador (localhost):
+- Filtrar por categoría: `http://localhost:8080/api/products?query=category:calzado`
+- Disponibilidad activa y orden ascendente: `http://localhost:8080/api/products?query=status:true&sort=asc`
+- Paginación, página 2, 5 por página: `http://localhost:8080/api/products?limit=5&page=2`
+- Combinado (categoría + orden + paginación):
+  `http://localhost:8080/api/products?query=category:calzado&sort=desc&limit=5&page=2`
+
+Respuesta del método GET (formato):
+```json
+{
+  "status": "success",
+  "payload": [ /* productos */ ],
+  "totalPages": 3,
+  "prevPage": 1,
+  "nextPage": 3,
+  "page": 2,
+  "hasPrevPage": true,
+  "hasNextPage": true,
+  "prevLink": "/api/products?limit=5&page=1&sort=desc&query=category:calzado",
+  "nextLink": "/api/products?limit=5&page=3&sort=desc&query=category:calzado"
+}
+```
+
 Carritos (`/api/carts`)
 - POST `/api/carts` → crea un carrito (201). Body opcional para inicializar productos.
-- GET `/api/carts/:cid` → lista de productos del carrito en formato `{ product, quantity }` (200)
+- GET `/api/carts/:cid` → lista de productos del carrito poblada (populate) con `{ product, quantity }` (200)
 - POST `/api/carts/:cid/product/:pid` → agrega/incrementa un producto en el carrito; body opcional `quantity` (200)
+- DELETE `/api/carts/:cid/products/:pid` → elimina un producto específico del carrito (200)
+- PUT `/api/carts/:cid` → reemplaza todos los productos del carrito por el arreglo enviado (200)
+- PUT `/api/carts/:cid/products/:pid` → actualiza solo la cantidad del producto (200)
+- DELETE `/api/carts/:cid` → vacía el carrito (204)
 
 Ejemplos de body:
 ```json
 // Crear carrito con productos
 {
   "products": [
-    { "id": 1, "quantity": 3 },
-    { "id": 2, "quantity": 1 }
+    { "id": "<productIdMongo>", "quantity": 3 },
+    { "id": "<productIdMongo>", "quantity": 1 }
   ]
 }
 ```
@@ -137,6 +180,30 @@ Ejemplos de body:
 { "quantity": 2 }
 ```
 Nota: `quantity` es opcional; si no se envía, se incrementa en 1.
+
+Ejemplos en PowerShell:
+```powershell
+# Crear carrito vacío
+Invoke-RestMethod -Method POST "http://localhost:8080/api/carts" -ContentType "application/json" -Body "{}"
+
+# Agregar producto (pid) al carrito (cid), cantidad 2
+Invoke-RestMethod -Method POST "http://localhost:8080/api/carts/<cid>/product/<pid>" -ContentType "application/json" -Body '{"quantity":2}'
+
+# Ver carrito con populate
+Invoke-RestMethod -Method GET "http://localhost:8080/api/carts/<cid>"
+
+# Actualizar cantidad de un producto
+Invoke-RestMethod -Method PUT "http://localhost:8080/api/carts/<cid>/products/<pid>" -ContentType "application/json" -Body '{"quantity":5}'
+
+# Reemplazar todos los productos del carrito
+Invoke-RestMethod -Method PUT "http://localhost:8080/api/carts/<cid>" -ContentType "application/json" -Body '{"products":[{"id":"<pid>","quantity":1}]}'
+
+# Eliminar producto del carrito
+Invoke-RestMethod -Method DELETE "http://localhost:8080/api/carts/<cid>/products/<pid>"
+
+# Vaciar carrito
+Invoke-RestMethod -Method DELETE "http://localhost:8080/api/carts/<cid>"
+```
 
 ## Pruebas rápidas con Postman
 
@@ -167,3 +234,31 @@ Nota: `quantity` es opcional; si no se envía, se incrementa en 1.
    - Ver productos del carrito:
      - Method: GET
      - URL: `http://localhost:8080/api/carts/{cid}`
+
+## Guía de requerimientos y pasos
+
+- Instalar MongoDB Community y asegurarse que el servicio corre en `127.0.0.1:27017`.
+- (Opcional) Instalar MongoDB Compass para gestionar y visualizar datos.
+- Crear la base de datos `test_coder`.
+- Colección de productos: `tienda_test` (se crea automáticamente al insertar por Mongoose si no existe).
+- Colección de carritos: `carts` (se crea automáticamente).
+- Variables de conexión están fijas en `app.js`: `mongodb://127.0.0.1:27017/test_coder`.
+- Instalar dependencias del proyecto:
+  ```sh
+  npm install
+  ```
+- Ejecutar el servidor:
+  ```sh
+  npm start
+  ```
+- Probar endpoints de productos con filtros/orden/paginación:
+  ```powershell
+  Invoke-RestMethod -Method GET "http://localhost:8080/api/products?query=category:calzado&sort=asc&limit=5&page=1"
+  ```
+- Probar vistas:
+  - `http://localhost:8080/home`
+  - `http://localhost:8080/realtimeproducts`
+
+Notas:
+- El cliente de Socket.IO está incluido en el layout y `public/js/realtime.js` usa `defer` para evitar errores de orden de carga.
+- Las imágenes subidas van a `public/img` y sus rutas se guardan en el campo `thumbnails` del producto.

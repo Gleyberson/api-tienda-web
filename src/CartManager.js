@@ -1,115 +1,171 @@
 const fs = require('fs').promises;
 const path = require('path');
+const mongoose = require('mongoose');
+
+const oid = (v) => (typeof v === 'string' && mongoose.Types.ObjectId.isValid(v) ? new mongoose.Types.ObjectId(v) : null);
+const mapProduct = (p) => ({
+  id: String(p._id),
+  title: p.title,
+  description: p.description,
+  code: p.code,
+  price: p.price,
+  status: p.status,
+  stock: p.stock,
+  category: p.category,
+  thumbnails: Array.isArray(p.thumbnails) ? p.thumbnails : []
+});
+
+const cartSchema = new mongoose.Schema({
+  products: [{
+    product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
+    quantity: { type: Number, required: true, min: 1 }
+  }]
+}, { timestamps: true, collection: 'carts' });
+
+const Cart = mongoose.models.Cart || mongoose.model('Cart', cartSchema);
 
 class CartManager {
-  constructor(filePath, productManager) {
-    if (!filePath || typeof filePath !== 'string') {
-      throw new Error('CartManager requiere una ruta de archivo válida como string');
-    }
-    this.path = filePath;
+  constructor(productManager) {
     this.productManager = productManager;
   }
 
-  async #ensureStore() {
-    const dir = path.dirname(this.path);
-    await fs.mkdir(dir, { recursive: true });
-    try {
-      await fs.access(this.path);
-    } catch {
-      await fs.writeFile(this.path, JSON.stringify([], null, 2), 'utf-8');
-    }
-  }
-
-  async #readAll() {
-    await this.#ensureStore();
-    const raw = await fs.readFile(this.path, 'utf-8');
-    try {
-      const data = JSON.parse(raw);
-      return Array.isArray(data) ? data : [];
-    } catch {
-      return [];
-    }
-  }
-
-  async #writeAll(carts) {
-    await this.#ensureStore();
-    await fs.writeFile(this.path, JSON.stringify(carts, null, 2), 'utf-8');
-  }
-
-  async #nextId(carts) {
-    if (!carts.length) return 1;
-    const maxId = carts.reduce((max, c) => (c.id > max ? c.id : max), 0);
-    return maxId + 1;
-  }
-
   async createCart(initialProducts = []) {
-    const carts = await this.#readAll();
-
-    // Allow passing either an array or an object with { products: [...] }
     const input = Array.isArray(initialProducts)
       ? initialProducts
       : (initialProducts && Array.isArray(initialProducts.products) ? initialProducts.products : []);
 
-    // Normalize and validate
     const totals = new Map();
     for (const item of input) {
-      const pid = Number(item && (item.id ?? item.product));
+      const pid = String(item && (item.id ?? item.product));
+      const _id = oid(pid);
       const qty = Number(item && item.quantity);
-      if (!Number.isFinite(pid)) throw new Error('ID de producto inválido en productos iniciales');
+      if (!_id) throw new Error('ID de producto inválido en productos iniciales');
       if (!Number.isFinite(qty) || qty <= 0) throw new Error('Cantidad inválida en productos iniciales');
 
-      if (this.productManager) {
-        const exists = await this.productManager.getProductById(pid);
-        if (!exists) throw new Error(`El producto no existe: ${pid}`);
-      }
-      totals.set(pid, (totals.get(pid) || 0) + qty);
+      // validate product existence
+      const exists = await this.productManager.getProductById(pid);
+      if (!exists) throw new Error(`El producto no existe: ${pid}`);
+
+      totals.set(_id.toString(), (totals.get(_id.toString()) || 0) + qty);
     }
 
-    const products = Array.from(totals.entries()).map(([pid, qty]) => ({ product: pid, quantity: qty }));
-
-    const newCart = { id: await this.#nextId(carts), products };
-    carts.push(newCart);
-    await this.#writeAll(carts);
-    return newCart;
+    const products = Array.from(totals.entries()).map(([pid, qty]) => ({ product: new mongoose.Types.ObjectId(pid), quantity: qty }));
+    const created = await Cart.create({ products });
+    return { id: String(created._id), products: created.products.map(p => ({ product: String(p.product), quantity: p.quantity })) };
   }
 
-  async getCartById(id) {
-    const cid = Number(id);
-    if (!Number.isFinite(cid)) throw new Error('ID de carrito inválido');
-    const carts = await this.#readAll();
-    return carts.find((c) => c.id === cid) || null;
+  async getCartById(id, { populate = false } = {}) {
+    const _id = oid(id);
+    if (!_id) throw new Error('ID de carrito inválido');
+
+    if (populate) {
+      const doc = await Cart.findById(_id).populate('products.product').lean();
+      if (!doc) return null;
+      return {
+        id: String(doc._id),
+        products: (doc.products || []).map(it => ({
+          product: mapProduct(it.product),
+          quantity: it.quantity
+        }))
+      };
+    } else {
+      const doc = await Cart.findById(_id).lean();
+      if (!doc) return null;
+      return {
+        id: String(doc._id),
+        products: (doc.products || []).map(it => ({ product: String(it.product), quantity: it.quantity }))
+      };
+    }
   }
 
   async addProductToCart(cartId, productId, qty = 1) {
-    const cid = Number(cartId);
-    const pid = Number(productId);
+    const _cid = oid(cartId);
+    const _pid = oid(productId);
     const quantity = Number(qty);
 
-    if (!Number.isFinite(cid)) throw new Error('ID de carrito inválido');
-    if (!Number.isFinite(pid)) throw new Error('ID de producto inválido');
+    if (!_cid) throw new Error('ID de carrito inválido');
+    if (!_pid) throw new Error('ID de producto inválido');
     if (!Number.isFinite(quantity) || quantity <= 0) throw new Error('Cantidad inválida');
 
-    // Validate product existence using ProductManager
-    if (this.productManager) {
-      const exists = await this.productManager.getProductById(pid);
-      if (!exists) throw new Error('El producto no existe');
+    const exists = await this.productManager.getProductById(String(_pid));
+    if (!exists) throw new Error('El producto no existe');
+
+    const cart = await Cart.findById(_cid);
+    if (!cart) return null;
+
+    const idx = cart.products.findIndex(p => String(p.product) === String(_pid));
+    if (idx === -1) cart.products.push({ product: _pid, quantity });
+    else cart.products[idx].quantity += quantity;
+
+    const saved = await cart.save();
+    return { id: String(saved._id), products: saved.products.map(it => ({ product: String(it.product), quantity: it.quantity })) };
+  }
+
+  async replaceProducts(cartId, items) {
+    const _cid = oid(cartId);
+    if (!_cid) throw new Error('ID de carrito inválido');
+
+    const normalized = [];
+    for (const it of Array.from(items || [])) {
+      const _pid = oid(String(it && (it.product ?? it.id)));
+      const qty = Number(it && it.quantity);
+      if (!_pid) throw new Error('ID de producto inválido');
+      if (!Number.isFinite(qty) || qty <= 0) throw new Error('Cantidad inválida');
+      const exists = await this.productManager.getProductById(String(_pid));
+      if (!exists) throw new Error(`El producto no existe: ${String(_pid)}`);
+      normalized.push({ product: _pid, quantity: qty });
     }
 
-    const carts = await this.#readAll();
-    const idx = carts.findIndex((c) => c.id === cid);
+    const cart = await Cart.findById(_cid);
+    if (!cart) return null;
+    cart.products = normalized;
+    const saved = await cart.save();
+    return { id: String(saved._id), products: saved.products.map(it => ({ product: String(it.product), quantity: it.quantity })) };
+  }
+
+  async updateProductQuantity(cartId, productId, quantity) {
+    const _cid = oid(cartId);
+    const _pid = oid(productId);
+    const qty = Number(quantity);
+    if (!_cid) throw new Error('ID de carrito inválido');
+    if (!_pid) throw new Error('ID de producto inválido');
+    if (!Number.isFinite(qty) || qty <= 0) throw new Error('Cantidad inválida');
+
+    const cart = await Cart.findById(_cid);
+    if (!cart) return null;
+
+    const idx = cart.products.findIndex(p => String(p.product) === String(_pid));
     if (idx === -1) return null;
 
-    const cart = carts[idx];
-    const pidx = cart.products.findIndex((p) => Number(p.product) === pid);
-    if (pidx === -1) {
-      cart.products.push({ product: pid, quantity });
-    } else {
-      cart.products[pidx].quantity += quantity;
-    }
+    cart.products[idx].quantity = qty;
+    const saved = await cart.save();
+    return { id: String(saved._id), products: saved.products.map(it => ({ product: String(it.product), quantity: it.quantity })) };
+  }
 
-    carts[idx] = cart;
-    await this.#writeAll(carts);
-    return cart;
+  async removeProduct(cartId, productId) {
+    const _cid = oid(cartId);
+    const _pid = oid(productId);
+    if (!_cid) throw new Error('ID de carrito inválido');
+    if (!_pid) throw new Error('ID de producto inválido');
+
+    const cart = await Cart.findById(_cid);
+    if (!cart) return null;
+
+    cart.products = (cart.products || []).filter(p => String(p.product) !== String(_pid));
+    const saved = await cart.save();
+    return { id: String(saved._id), products: saved.products.map(it => ({ product: String(it.product), quantity: it.quantity })) };
+  }
+
+  async emptyCart(cartId) {
+    const _cid = oid(cartId);
+    if (!_cid) throw new Error('ID de carrito inválido');
+
+    const cart = await Cart.findById(_cid);
+    if (!cart) return null;
+
+    cart.products = [];
+    await cart.save();
+    return true;
   }
 }
 
