@@ -14,7 +14,9 @@
       <a class="navbar-brand" href="/home">Tienda</a>
       <div class="navbar-nav">
         <a class="nav-link" href="/home">Home</a>
+        <a class="nav-link" href="/products">Productos</a>
         <a class="nav-link" href="/realtimeproducts">Real-time</a>
+        <a id="navCart" class="nav-link d-none" href="#">Ver carrito</a>
       </div>
     </div>
   </nav>
@@ -24,5 +26,18 @@
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Mostrar "Ver carrito" si existe un cid en localStorage
+    (function() {
+      try {
+        var cid = localStorage.getItem('cid');
+        var link = document.getElementById('navCart');
+        if (cid && link) {
+          link.href = '/carts/' + cid + '/view';
+          link.classList.remove('d-none');
+        }
+      } catch (_) {}
+    })();
+  </script>
 </body>
 </html>

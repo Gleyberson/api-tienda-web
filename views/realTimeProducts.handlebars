@@ -73,7 +73,10 @@
             </div>
             <div class="card-footer bg-white d-flex justify-content-between align-items-center">
               <strong class="text-primary">${{this.price}}</strong>
-              <button class="btn btn-outline-danger btn-sm btn-delete" data-id="{{this.id}}">Eliminar</button>
+              <div class="btn-group">
+                <button class="btn btn-outline-primary btn-sm btn-add-cart" data-id="{{this.id}}">Agregar al carrito</button>
+                <button class="btn btn-outline-danger btn-sm btn-delete" data-id="{{this.id}}">Eliminar</button>
+              </div>
             </div>
           </div>
         </div>

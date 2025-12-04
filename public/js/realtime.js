@@ -29,7 +29,10 @@ function card(product) {
         </div>
         <div class="card-footer bg-white d-flex justify-content-between align-items-center">
           <strong class="text-primary">${product.price != null ? pesos(product.price) : ''}</strong>
-          <button class="btn btn-outline-danger btn-sm btn-delete" data-id="${product.id}">Eliminar</button>
+          <div class="btn-group">
+            <button class="btn btn-outline-primary btn-sm btn-add-cart" data-id="${product.id}">Agregar al carrito</button>
+            <button class="btn btn-outline-danger btn-sm btn-delete" data-id="${product.id}">Eliminar</button>
+          </div>
         </div>
       </div>
     </div>
@@ -124,4 +127,26 @@ document.addEventListener('click', (e) => {
       alert(`No se pudo eliminar: ${resp?.error || 'desconocido'}`);
     }
   });
+});
+
+// Add to cart directly from realtime list
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.btn-add-cart');
+  if (!btn) return;
+  const pid = btn.getAttribute('data-id');
+  let cid = localStorage.getItem('cid');
+  try {
+    if (!cid) {
+      const created = await fetch('/api/carts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const cart = await created.json();
+      cid = cart.id || cart._id || cart.cid;
+      localStorage.setItem('cid', cid);
+    }
+    const res = await fetch(`/api/carts/${cid}/product/${pid}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"quantity":1}' });
+    if (!res.ok) throw new Error('No se pudo agregar');
+    const go = confirm('Producto agregado al carrito. ¿Ver carrito ahora?');
+    if (go) window.location.href = `/carts/${cid}/view`;
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
 });
